@@ -158,3 +158,9 @@ musinary/
 - If host Spotify token expires, host must re-authenticate.
 - For production, set `VITE_REDIRECT_URI` and `CLIENT_URL` to your deployed domain and register that URI in Spotify Dashboard.
 - Some of the visual aspects was made with AI. This won't be permananat I just want a quick template for how the game will work.
+
+### Troubleshooting: `Connection error: xhr poll error`
+
+- Make sure `VITE_SERVER_URL` points to your deployed backend (not `localhost`).
+- Make sure server `CLIENT_URL` is the site origin only, for example `https://smarsian.github.io`.
+- Do not include path segments in server `CLIENT_URL` (avoid `https://smarsian.github.io/Musinary/`).

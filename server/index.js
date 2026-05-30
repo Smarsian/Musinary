@@ -10,12 +10,31 @@ const app = express();
 const server = http.createServer(app);
 
 const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
+const CLIENT_URLS = process.env.CLIENT_URLS || '';
+
+function normalizeToOrigin(value) {
+  if (!value || typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  try {
+    return new URL(trimmed).origin;
+  } catch {
+    return trimmed.replace(/\/+$/, '');
+  }
+}
+
+const configuredAllowedOrigins = new Set(
+  [CLIENT_URL, ...CLIENT_URLS.split(',')]
+    .map((entry) => normalizeToOrigin(entry))
+    .filter(Boolean),
+);
 
 function isAllowedOrigin(origin) {
   // Allow non-browser requests (no Origin header), e.g. health checks.
   if (!origin) return true;
 
-  if (origin === CLIENT_URL) return true;
+  const normalizedOrigin = normalizeToOrigin(origin);
+  if (normalizedOrigin && configuredAllowedOrigins.has(normalizedOrigin)) return true;
 
   // In local dev, allow localhost on any port so Vite fallback ports still work.
   if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin)) return true;
