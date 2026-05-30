@@ -31,13 +31,32 @@ jobs:
       - name: Install client dependencies
         run: npm ci --prefix client
 
+      - name: Validate required frontend env
+        env:
+          VITE_SPOTIFY_CLIENT_ID: ${{ secrets.VITE_SPOTIFY_CLIENT_ID || vars.VITE_SPOTIFY_CLIENT_ID }}
+          VITE_REDIRECT_URI: ${{ secrets.VITE_REDIRECT_URI || vars.VITE_REDIRECT_URI }}
+          VITE_SERVER_URL: ${{ secrets.VITE_SERVER_URL || vars.VITE_SERVER_URL }}
+        run: |
+          if [ -z "$VITE_SPOTIFY_CLIENT_ID" ]; then
+            echo "Missing VITE_SPOTIFY_CLIENT_ID in repository Secrets/Variables"
+            exit 1
+          fi
+          if [ -z "$VITE_REDIRECT_URI" ]; then
+            echo "Missing VITE_REDIRECT_URI in repository Secrets/Variables"
+            exit 1
+          fi
+          if [ -z "$VITE_SERVER_URL" ]; then
+            echo "Missing VITE_SERVER_URL in repository Secrets/Variables"
+            exit 1
+          fi
+
       - name: Build client
         run: npm run build --prefix client
         env:
           VITE_BASE_PATH: /Musinary/
-          VITE_SPOTIFY_CLIENT_ID: ${{ secrets.VITE_SPOTIFY_CLIENT_ID }}
-          VITE_REDIRECT_URI: ${{ secrets.VITE_REDIRECT_URI }}
-          VITE_SERVER_URL: ${{ secrets.VITE_SERVER_URL }}
+          VITE_SPOTIFY_CLIENT_ID: ${{ secrets.VITE_SPOTIFY_CLIENT_ID || vars.VITE_SPOTIFY_CLIENT_ID }}
+          VITE_REDIRECT_URI: ${{ secrets.VITE_REDIRECT_URI || vars.VITE_REDIRECT_URI }}
+          VITE_SERVER_URL: ${{ secrets.VITE_SERVER_URL || vars.VITE_SERVER_URL }}
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
