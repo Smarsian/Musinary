@@ -242,6 +242,15 @@ app.post('/api/preview/stop', async (req, res) => {
   }
 });
 
+// Root endpoint for quick host checks (e.g., Render URL)
+app.get('/', (_req, res) => {
+  res.json({
+    service: 'musinary-server',
+    status: 'ok',
+    health: '/health',
+  });
+});
+
 // Health check
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 

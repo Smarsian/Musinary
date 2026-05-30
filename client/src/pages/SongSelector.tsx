@@ -3,8 +3,15 @@ import SegmentSlider from '../components/SegmentSlider';
 import { TrackInfo } from '../types';
 import { pausePlayback, playTrackOnActiveDevice } from '../spotifyAuth';
 
+const API_BASE = (import.meta.env.VITE_SERVER_URL as string | undefined)?.replace(/\/$/, '') ?? '';
+
+function toApiUrl(path: string): string {
+  if (!API_BASE) return path;
+  return `${API_BASE}${path.startsWith('/') ? path : `/${path}`}`;
+}
+
 async function startHostPreview(roomCode: string, trackUri: string, positionMs: number): Promise<void> {
-  const res = await fetch('/api/preview/start', {
+  const res = await fetch(toApiUrl('/api/preview/start'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ roomCode, trackUri, positionMs }),
@@ -17,7 +24,7 @@ async function startHostPreview(roomCode: string, trackUri: string, positionMs: 
 }
 
 async function stopHostPreview(roomCode: string): Promise<void> {
-  const res = await fetch('/api/preview/stop', {
+  const res = await fetch(toApiUrl('/api/preview/stop'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ roomCode }),
@@ -65,7 +72,9 @@ export default function SongSelector({ roomCode, spotifyToken, onSubmit, onCance
     }
     setLoading(true);
     try {
-      const res = await fetch(`/api/track/${encodeURIComponent(roomCode)}/${encodeURIComponent(trackId)}`);
+      const res = await fetch(
+        toApiUrl(`/api/track/${encodeURIComponent(roomCode)}/${encodeURIComponent(trackId)}`),
+      );
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.error ?? 'Failed to fetch track');
