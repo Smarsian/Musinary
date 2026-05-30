@@ -24,7 +24,7 @@ export default function Lobby({ room, currentPlayer, isHost, onAddSong, onStartG
           <h1 className="text-5xl font-black tracking-widest mt-1 text-brand-400">{room.code}</h1>
           <p className="text-gray-400 mt-1 text-sm">Share this code with your friends</p>
           <p className="text-xs text-brand-300 mt-2">
-            Host display: {room.hostName} {room.hostConnected ? '• connected' : '• disconnected'}
+            Host display: {room.hostName} {room.hostConnected ? '(connected)' : '(disconnected)'}
           </p>
         </div>
 
@@ -121,7 +121,7 @@ export default function Lobby({ room, currentPlayer, isHost, onAddSong, onStartG
         )}
 
         <p className="text-center text-xs text-gray-600">
-          Waiting in lobby • {participants.length} player
+          Waiting in lobby - {participants.length} player
           {participants.length !== 1 ? 's' : ''} + host connected
         </p>
       </div>

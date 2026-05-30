@@ -219,7 +219,7 @@ export default function SongSelector({ roomCode, spotifyToken, onSubmit, onCance
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="card w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-bold">🎵 Pick Your Song</h2>
+          <h2 className="text-xl font-bold">Select a Song</h2>
           <button onClick={onCancel} className="text-gray-400 hover:text-brand-600 text-2xl leading-none">
             ×
           </button>
@@ -283,13 +283,13 @@ export default function SongSelector({ roomCode, spotifyToken, onSubmit, onCance
               disabled={!trackInfo}
               className="btn-secondary w-full py-3"
             >
-              {previewing ? '⏹ Stop Preview' : '▶ Preview This 30-Second Clip'}
+              {previewing ? 'Stop Preview' : 'Preview 30-Second Clip'}
             </button>
 
             {/* Preview note */}
             <div className="text-xs text-gray-500 bg-gray-800/50 rounded-xl p-3">
-              💡 <strong>Tip:</strong> Drag the purple window to choose the part that will play during the
-              game. Pick something catchy — or deviously obscure!
+              <strong>Tip:</strong> Drag the selection window to choose the exact section that will play
+              in the round.
               <br />
               <span className="text-gray-600 mt-1 block">
                 Preview plays on the host's Spotify device.
@@ -298,7 +298,7 @@ export default function SongSelector({ roomCode, spotifyToken, onSubmit, onCance
 
             {/* Submit */}
             <button onClick={handleSubmit} className="btn-primary w-full py-4 text-lg">
-              ✅ Submit Song
+              Submit Song
             </button>
           </div>
         )}
@@ -306,8 +306,7 @@ export default function SongSelector({ roomCode, spotifyToken, onSubmit, onCance
         {/* How-to if nothing loaded yet */}
         {!trackInfo && !loading && (
           <div className="mt-8 text-center text-gray-600 text-sm space-y-2">
-            <div className="text-4xl">🔗</div>
-            <p>Open Spotify, find any track, tap <strong>Share → Copy Link</strong>, then paste it above.</p>
+            <p>Open Spotify, copy any track link, and paste it above to continue.</p>
           </div>
         )}
       </div>

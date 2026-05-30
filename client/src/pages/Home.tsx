@@ -24,7 +24,7 @@ export default function Home({ onConnectSpotifyHost, onJoinRoom, isConnecting, e
         <h1 className="text-5xl font-black tracking-tight text-brand-400">
           Musinary
         </h1>
-        <p className="mt-2 text-gray-400 text-lg">Made by Smarsian</p>
+        <p className="mt-2 text-gray-400 text-lg">Multiplayer music guessing, built for friends.</p>
       </div>
 
       <div className="card w-full max-w-md">
@@ -90,7 +90,7 @@ export default function Home({ onConnectSpotifyHost, onJoinRoom, isConnecting, e
               />
             </div>
             <button type="submit" disabled={!name.trim() || !code.trim() || isConnecting} className="btn-primary w-full">
-              {isConnecting ? 'Joining…' : 'Join Game →'}
+              {isConnecting ? 'Joining...' : 'Join Game'}
             </button>
           </form>
         )}

@@ -248,7 +248,7 @@ export default function GamePlay({ roomCode, isHost, currentPlayer, spotifyToken
         </div>
         {sdkError && (
           <div className="text-red-400 text-sm bg-red-950/50 border border-red-800 rounded-xl p-3 max-w-sm text-center">
-            ⚠️ {sdkError}
+            Playback issue: {sdkError}
           </div>
         )}
       </div>
@@ -284,7 +284,7 @@ export default function GamePlay({ roomCode, isHost, currentPlayer, spotifyToken
           <div className="card space-y-2">
             <h3 className="text-sm text-gray-500 uppercase font-semibold tracking-wider mb-3">Results</h3>
             {roundResult.guesses.length === 0 && (
-              <p className="text-gray-500 text-sm text-center py-2">Nobody guessed 😅</p>
+              <p className="text-gray-500 text-sm text-center py-2">No correct guesses this round.</p>
             )}
             {roundResult.guesses
               .sort((a, b) => (b.correct ? 1 : 0) - (a.correct ? 1 : 0) || a.timeMs - b.timeMs)
@@ -298,7 +298,7 @@ export default function GamePlay({ roomCode, isHost, currentPlayer, spotifyToken
                   <div>
                     <span className="font-semibold">{g.playerName}</span>
                     <span className={`ml-2 text-sm ${g.correct ? 'text-green-400' : 'text-gray-500'}`}>
-                      {g.correct ? `"${g.guess}"` : `❌ "${g.guess}"`}
+                      {g.correct ? `"${g.guess}"` : `"${g.guess}"`}
                     </span>
                   </div>
                   {g.correct && (
@@ -324,7 +324,7 @@ export default function GamePlay({ roomCode, isHost, currentPlayer, spotifyToken
 
           {isHost && (
             <button onClick={handleNextRound} className="btn-primary w-full py-4 text-lg">
-              {round.roundIndex + 1 >= round.totalRounds ? 'See Final Scores' : '▶ Next Round'}
+              {round.roundIndex + 1 >= round.totalRounds ? 'See Final Scores' : 'Next Round'}
             </button>
           )}
           {!isHost && (
@@ -360,7 +360,7 @@ export default function GamePlay({ roomCode, isHost, currentPlayer, spotifyToken
         {/* Mystery album art */}
         <div className="flex justify-center">
           <div className="w-48 h-48 bg-gray-800 rounded-2xl shadow-2xl flex items-center justify-center border-2 border-gray-700">
-            <span className="text-7xl">🎵</span>
+            <span className="text-2xl font-semibold tracking-widest text-gray-500">MUSINARY</span>
           </div>
         </div>
 
@@ -383,7 +383,7 @@ export default function GamePlay({ roomCode, isHost, currentPlayer, spotifyToken
             <h3 className="text-xs text-gray-500 uppercase font-semibold">Correct guesses</h3>
             {liveGuesses.map((g, i) => (
               <div key={i} className="flex justify-between text-sm animate-bounce-in">
-                <span className="text-green-400 font-semibold">✅ {g.playerName}</span>
+                <span className="text-green-400 font-semibold">{g.playerName}</span>
                 <span className="text-brand-400 font-bold">+{g.points} pts ({(g.timeMs / 1000).toFixed(1)}s)</span>
               </div>
             ))}
@@ -450,10 +450,10 @@ export default function GamePlay({ roomCode, isHost, currentPlayer, spotifyToken
               onClick={endRound}
               className="btn-secondary flex-1 text-sm"
             >
-              ⏭ Skip Round
+              Skip Round
             </button>
             {sdkError && (
-              <div className="text-xs text-red-400 self-center">⚠️ {sdkError}</div>
+              <div className="text-xs text-red-400 self-center">Playback issue: {sdkError}</div>
             )}
             {isHost && spotifyToken && !sdkReady && !sdkError && (
               <div className="text-xs text-yellow-400 self-center">Connecting to Spotify…</div>

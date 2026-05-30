@@ -18,7 +18,6 @@ export default function Results({ scores, currentPlayerId, rematchVotes, rematch
       <div className="w-full max-w-lg space-y-6 animate-bounce-in">
         {/* Winner banner */}
         <div className="text-center space-y-2">
-          <div className="text-6xl">🏆</div>
           <h1 className="text-3xl font-black">{winner?.name} wins!</h1>
           <p className="text-brand-400 text-xl font-bold">{winner?.score} points</p>
         </div>

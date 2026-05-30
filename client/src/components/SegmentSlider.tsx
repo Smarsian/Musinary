@@ -74,7 +74,7 @@ export default function SegmentSlider({ durationMs, startTimeMs, onChange }: Pro
       <div className="flex justify-between text-xs text-gray-500">
         <span>0:00</span>
         <span className="text-brand-400 font-semibold">
-          ← drag to choose 30-second clip →
+          Drag to choose a 30-second clip
         </span>
         <span>{msToTime(durationMs)}</span>
       </div>
@@ -115,9 +115,9 @@ export default function SegmentSlider({ durationMs, startTimeMs, onChange }: Pro
 
       {/* Time readout */}
       <div className="flex justify-between text-sm font-mono">
-        <span className="text-brand-400 font-semibold">▶ {msToTime(startTimeMs)}</span>
-        <span className="text-gray-400">→</span>
-        <span className="text-brand-400 font-semibold">⏹ {msToTime(startTimeMs + WINDOW_MS)}</span>
+        <span className="text-brand-400 font-semibold">Start {msToTime(startTimeMs)}</span>
+        <span className="text-gray-400">to</span>
+        <span className="text-brand-400 font-semibold">End {msToTime(startTimeMs + WINDOW_MS)}</span>
       </div>
     </div>
   );
