@@ -20,6 +20,13 @@ interface LiveGuess {
 const ROUND_DURATION_MS = 30_000;
 
 export default function GamePlay({ roomCode, isHost, currentPlayer, spotifyToken, onGameOver }: Props) {
+  const [hostVolume, setHostVolume] = useState<number>(() => {
+    if (typeof window === 'undefined') return 85;
+    const saved = Number(window.localStorage.getItem('musinary-host-volume'));
+    if (!Number.isFinite(saved)) return 85;
+    return Math.min(100, Math.max(0, Math.round(saved)));
+  });
+  const [showVolumeControl, setShowVolumeControl] = useState(false);
   const [round, setRound] = useState<RoundData | null>(null);
   const [roundResult, setRoundResult] = useState<RoundEndedPayload | null>(null);
   const [guess, setGuess] = useState('');
@@ -47,7 +54,7 @@ export default function GamePlay({ roomCode, isHost, currentPlayer, spotifyToken
       const player = new window.Spotify.Player({
         name: 'Musinary Party Game',
         getOAuthToken: (cb) => cb(spotifyToken!),
-        volume: 0.85,
+        volume: hostVolume / 100,
       });
 
       player.addListener('initialization_error', ({ message }) => {
@@ -88,6 +95,19 @@ export default function GamePlay({ roomCode, isHost, currentPlayer, spotifyToken
       playerRef.current?.disconnect();
     };
   }, [isHost, spotifyToken]);
+
+  // Host volume control for Spotify Web Playback SDK.
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('musinary-host-volume', String(hostVolume));
+    }
+
+    if (!isHost || !sdkReady || !playerRef.current) return;
+
+    playerRef.current.setVolume(hostVolume / 100).catch(() => {
+      setSdkError('Could not adjust host volume on Spotify Web Player.');
+    });
+  }, [hostVolume, isHost, sdkReady]);
 
   // ─── Socket event listeners ─────────────────────────────────────────────────
   useEffect(() => {
@@ -440,18 +460,51 @@ export default function GamePlay({ roomCode, isHost, currentPlayer, spotifyToken
 
         {/* Host controls */}
         {isHost && (
-          <div className="flex gap-3 pt-2 items-center">
-            {!audioArmed && sdkReady && (
-              <button onClick={armAudio} className="btn-primary text-sm whitespace-nowrap">
-                Enable Host Audio
+          <div className="space-y-3 pt-2">
+            <div className="flex gap-3 items-center">
+              {!audioArmed && sdkReady && (
+                <button onClick={armAudio} className="btn-primary text-sm whitespace-nowrap">
+                  Enable Host Audio
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setShowVolumeControl((prev) => !prev)}
+                className="btn-secondary text-sm whitespace-nowrap"
+                disabled={!sdkReady}
+              >
+                {showVolumeControl ? 'Hide Volume' : 'Volume'}
               </button>
+              <button
+                onClick={endRound}
+                className="btn-secondary flex-1 text-sm"
+              >
+                Skip Round
+              </button>
+            </div>
+
+            {showVolumeControl && (
+              <div className="card py-4">
+                <div className="flex items-center justify-between gap-3">
+                  <label htmlFor="host-volume" className="text-sm text-gray-400 font-semibold">
+                    Host Volume
+                  </label>
+                  <span className="text-sm font-mono text-brand-400">{hostVolume}%</span>
+                </div>
+                <input
+                  id="host-volume"
+                  type="range"
+                  min={0}
+                  max={100}
+                  step={1}
+                  value={hostVolume}
+                  onChange={(e) => setHostVolume(Number(e.target.value))}
+                  className="w-full mt-3"
+                  disabled={!sdkReady}
+                />
+              </div>
             )}
-            <button
-              onClick={endRound}
-              className="btn-secondary flex-1 text-sm"
-            >
-              Skip Round
-            </button>
+
             {sdkError && (
               <div className="text-xs text-red-400 self-center">Playback issue: {sdkError}</div>
             )}
