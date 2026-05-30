@@ -83,6 +83,35 @@ npm run dev
 - Client: http://localhost:5173
 - Server: http://localhost:3001
 
+## Deploy to GitHub Pages
+
+This repo now includes a workflow at `.github/workflows/deploy-pages.yml` that deploys the React client from `client/dist`.
+
+### 1. Enable Pages in your repo
+
+In GitHub:
+
+1. Open Settings -> Pages
+2. Under Source, choose GitHub Actions
+
+### 2. Add required repository secrets
+
+Open Settings -> Secrets and variables -> Actions, then add:
+
+- `VITE_SPOTIFY_CLIENT_ID`
+- `VITE_REDIRECT_URI` (example: `https://smarsian.github.io/Musinary/`)
+- `VITE_SERVER_URL` (your deployed backend URL, not localhost)
+
+### 3. Push to `main`
+
+Each push to `main` builds the client with `VITE_BASE_PATH=/Musinary/` and deploys to:
+
+- `https://smarsian.github.io/Musinary/`
+
+### Important backend note
+
+GitHub Pages only hosts static files. Your Express + Socket.io server must be deployed separately (for example Render, Railway, Fly.io, or a VPS), and `VITE_SERVER_URL` must point to that live backend.
+
 ## Available Scripts
 
 From repo root:
