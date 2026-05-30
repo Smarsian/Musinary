@@ -1,94 +1,96 @@
-# Musinary 🎵
+# Musinary
 
-> The party game where your music taste is on trial — pick your 30-second segment, stump your friends, and score points for being first to guess!
+The party game where your music taste is on trial.
+Pick a 30-second song segment, challenge your friends, and race to guess titles first.
 
-## How It Works
+## Current Features
 
-1. **Host creates a room** and shares the 6-character code with friends
-2. **Everyone joins** on their phones or laptops
-3. **Each player submits a Spotify track** and drags a slider to pick their sneaky 30-second segment
-4. **The game plays each segment** through the host's speakers, one at a time
-5. **Players race to type the correct song title** — the faster you guess, the more points you earn
-6. **After all songs play**, a final podium reveals the winner
+- Real-time multiplayer rooms over Socket.io
+- Host-authenticated Spotify playback (Premium required on host)
+- Player song submission with draggable 30-second segment selector
+- Preview support for joiners without Spotify login via host-relay preview endpoints
+- Round timer, live correct-guess feed, and automatic score calculation
+- Progressive title hints during rounds (masked title reveals over time)
+- Final results + rematch voting
+- Toggleable light/dark mode with local persistence
+
+## Game Flow
+
+1. Host creates a room and signs in with Spotify.
+2. Players join with room code.
+3. Each player submits one track and chooses a 30-second start time.
+4. Host starts the game and each round plays one submitted segment.
+5. Players type guesses while the timer runs.
+6. Scores update by response speed, then final standings are shown.
 
 ### Scoring
 
 | Guess time | Points |
 |---|---|
-| 0–5 seconds | 1000 |
-| 5–10 seconds | 800 |
-| 10–15 seconds | 600 |
-| 15–20 seconds | 500 |
-| 20–25 seconds | 300 |
-| 25–30 seconds | 100 |
+| 0-5 seconds | 1000 |
+| 5-10 seconds | 800 |
+| 10-15 seconds | 600 |
+| 15-20 seconds | 500 |
+| 20-25 seconds | 300 |
+| 25-30 seconds | 100 |
 
----
+### Guess Matching Rules
 
-## Setup
+- Matching is strict after normalization.
+- Normalization removes punctuation/brackets/feat tags and compares full normalized title equality.
+- Example: "Bohemian" does not count for "Bohemian Rhapsody".
 
-### Prerequisites
+## Requirements
 
-- **Node.js 18+**
-- A **Spotify Developer** account (free): [developer.spotify.com](https://developer.spotify.com/dashboard)
-- **Spotify Premium** on the host's account (required for Web Playback SDK)
+- Node.js 18+
+- Spotify Developer app (for client ID)
+- Spotify Premium for host playback
 
-### 1. Create a Spotify App
+## Spotify App Setup
 
-1. Go to [Spotify Developer Dashboard](https://developer.spotify.com/dashboard)
-2. Click **Create App**
-3. Fill in any name/description
-4. Under **Redirect URIs**, add: `http://localhost:5173`
-5. Save and copy your **Client ID**
+1. Create an app in the Spotify Dashboard: https://developer.spotify.com/dashboard
+2. Add redirect URI: http://localhost:5173
+3. Copy your Spotify Client ID
 
-### 2. Configure environment
+## Environment Configuration
+
+### Client (`client/.env`) required
 
 ```bash
-# Client — edit client/.env
-VITE_SPOTIFY_CLIENT_ID=your_client_id_here
+VITE_SPOTIFY_CLIENT_ID=your_spotify_client_id_here
 VITE_REDIRECT_URI=http://localhost:5173
 VITE_SERVER_URL=http://localhost:3001
+```
 
-# Server — edit server/.env (optional, values already defaulted)
+### Server (`.env` in repo root) optional
+
+Defaults are already set in code, but you can override:
+
+```bash
 PORT=3001
 CLIENT_URL=http://localhost:5173
 ```
 
-### 3. Install & run
+You can copy values from `.env.example`.
+
+## Run Locally
 
 ```bash
-# Install all dependencies
 npm run install:all
-
-# Start both server and client simultaneously
 npm run dev
 ```
 
-- **Client**: http://localhost:5173
-- **Server**: http://localhost:3001
+- Client: http://localhost:5173
+- Server: http://localhost:3001
 
----
+## Available Scripts
 
-## Playing the Game
+From repo root:
 
-### Host setup
-1. Open http://localhost:5173 on the device connected to speakers/TV
-2. Click **"Connect Spotify & Host Game"** → log in with your Premium account
-3. Share the room code (shown in big letters) with all players
-4. Once everyone has submitted a song, click **Start Game**
-
-### Guest setup
-1. Open http://localhost:5173 on your phone/laptop
-2. Click **Join Room**, enter your name and the room code
-3. Click **Pick My Song**, paste a Spotify track link, drag the slider
-4. Submit — then wait for the game to begin
-
-### During gameplay
-- The 30-second clip plays through the **host's device** (make sure it's connected to speakers!)
-- Type your guess in the text box and hit Enter
-- Partial/fuzzy matches count — "Bohemian" will match "Bohemian Rhapsody"
-- You only get one correct guess per round
-
----
+- `npm run dev`: starts server + client concurrently
+- `npm run free-ports`: frees common dev ports used by the app
+- `npm run install:all`: installs root, server, and client dependencies
+- `npm run build`: builds the client app
 
 ## Tech Stack
 
@@ -96,39 +98,34 @@ npm run dev
 |---|---|
 | Frontend | React 18 + TypeScript + Vite |
 | Styling | Tailwind CSS |
-| Backend | Node.js + Express |
-| Real-time | Socket.io |
-| Audio | Spotify Web Playback SDK |
-| Auth | Spotify OAuth 2.0 (PKCE) |
-
----
+| Backend | Express + Socket.io |
+| Spotify | OAuth PKCE + Web Playback SDK + Web API |
 
 ## Project Structure
 
-```
+```text
 musinary/
-├── server/
-│   ├── index.js          # Express + Socket.io server
-│   └── gameManager.js    # Room/game state, guess scoring
-└── client/
-    └── src/
-        ├── App.tsx                      # Main state machine & routing
-        ├── socket.ts                    # Socket.io client
-        ├── spotifyAuth.ts               # PKCE OAuth + Playback API helpers
-        ├── pages/
-        │   ├── Home.tsx                 # Create/join lobby
-        │   ├── Lobby.tsx                # Player list, song submission status
-        │   ├── SongSelector.tsx         # Spotify URL input + segment picker
-        │   ├── GamePlay.tsx             # Live round: timer, guess input, results
-        │   └── Results.tsx              # Final podium
-        └── components/
-            └── SegmentSlider.tsx        # Draggable 30-second window selector
+    client/
+        src/
+            App.tsx
+            pages/
+                Home.tsx
+                Lobby.tsx
+                SongSelector.tsx
+                GamePlay.tsx
+                Results.tsx
+            components/
+                SegmentSlider.tsx
+    server/
+        index.js
+        gameManager.js
+    scripts/
+        freePorts.mjs
 ```
-
----
 
 ## Notes
 
-- The host **must** have Spotify Premium for audio playback; guests do not need it
-- Spotify access tokens expire after **1 hour** — re-login for longer sessions
-- For production, update `VITE_REDIRECT_URI` and `CLIENT_URL` to your domain and register it in the Spotify dashboard
+- Host tokens are stored in-memory per room on the server.
+- If host Spotify token expires, host must re-authenticate.
+- For production, set `VITE_REDIRECT_URI` and `CLIENT_URL` to your deployed domain and register that URI in Spotify Dashboard.
+- Some of the visual aspects was made with AI. This won't be permananat I just want a quick template for how the game will work.
