@@ -1,0 +1,16 @@
+{
+  "name": "musinary",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "predev": "node scripts/freePorts.mjs",
+    "dev": "concurrently \"npm run dev --prefix server\" \"npm run dev --prefix client\"",
+    "free-ports": "node scripts/freePorts.mjs",
+    "install:all": "npm install && npm install --prefix server && npm install --prefix client",
+    "build": "npm run build --prefix client"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "kill-port": "^2.0.1"
+  }
+}
