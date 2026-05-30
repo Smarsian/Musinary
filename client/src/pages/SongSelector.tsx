@@ -2,12 +2,33 @@ import { useEffect, useRef, useState } from 'react';
 import SegmentSlider from '../components/SegmentSlider';
 import { TrackInfo } from '../types';
 import { pausePlayback, playTrackOnActiveDevice } from '../spotifyAuth';
+import socket from '../socket';
 
 const API_BASE = (import.meta.env.VITE_SERVER_URL as string | undefined)?.replace(/\/$/, '') ?? '';
 
 function toApiUrl(path: string): string {
   if (!API_BASE) return path;
   return `${API_BASE}${path.startsWith('/') ? path : `/${path}`}`;
+}
+
+async function fetchTrackViaSocket(roomCode: string, trackId: string): Promise<TrackInfo> {
+  return new Promise((resolve, reject) => {
+    socket.timeout(8000).emit(
+      'fetch-track',
+      { roomCode, trackId },
+      (err: Error | null, res: { success: boolean; track?: TrackInfo; error?: string }) => {
+        if (err) {
+          reject(new Error('Track lookup timed out'));
+          return;
+        }
+        if (!res?.success || !res.track) {
+          reject(new Error(res?.error ?? 'Failed to fetch track'));
+          return;
+        }
+        resolve(res.track);
+      },
+    );
+  });
 }
 
 async function startHostPreview(roomCode: string, trackUri: string, positionMs: number): Promise<void> {
@@ -72,14 +93,22 @@ export default function SongSelector({ roomCode, spotifyToken, onSubmit, onCance
     }
     setLoading(true);
     try {
-      const res = await fetch(
-        toApiUrl(`/api/track/${encodeURIComponent(roomCode)}/${encodeURIComponent(trackId)}`),
-      );
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.error ?? 'Failed to fetch track');
+      let data: TrackInfo;
+
+      try {
+        data = await fetchTrackViaSocket(roomCode, trackId);
+      } catch {
+        // Fallback for older servers that may not have the socket route yet.
+        const res = await fetch(
+          toApiUrl(`/api/track/${encodeURIComponent(roomCode)}/${encodeURIComponent(trackId)}`),
+        );
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body.error ?? 'Failed to fetch track');
+        }
+        data = (await res.json()) as TrackInfo;
       }
-      const data: TrackInfo = await res.json();
+
       setTrackInfo(data);
       // Default start: midpoint of the track (more interesting than the start)
       const mid = Math.max(0, Math.floor(data.durationMs / 2 / 1000) * 1000 - 15000);

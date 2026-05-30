@@ -143,18 +143,17 @@ function startHintTimer(roomCode) {
   hintTimers.set(roomCode, timer);
 }
 
-// Proxy: fetch Spotify track info using the room host's stored token
-app.get('/api/track/:roomCode/:trackId', async (req, res) => {
-  const { roomCode, trackId } = req.params;
-
+async function getTrackInfoForRoom(roomCode, trackId) {
   // Validate trackId is a valid Spotify track ID (22 alphanumeric chars)
   if (!/^[A-Za-z0-9]{22}$/.test(trackId)) {
-    return res.status(400).json({ error: 'Invalid track ID' });
+    return { success: false, status: 400, error: 'Invalid track ID' };
   }
 
   const room = gameManager.getRoom(roomCode.toUpperCase());
-  if (!room) return res.status(404).json({ error: 'Room not found' });
-  if (!room.hostToken) return res.status(401).json({ error: 'Host not authenticated with Spotify' });
+  if (!room) return { success: false, status: 404, error: 'Room not found' };
+  if (!room.hostToken) {
+    return { success: false, status: 401, error: 'Host not authenticated with Spotify' };
+  }
 
   try {
     const response = await axios.get(`https://api.spotify.com/v1/tracks/${encodeURIComponent(trackId)}`, {
@@ -162,24 +161,35 @@ app.get('/api/track/:roomCode/:trackId', async (req, res) => {
     });
 
     const track = response.data;
-    res.json({
-      trackId: track.id,
-      trackUri: track.uri,
-      trackName: track.name,
-      artistName: track.artists.map((a) => a.name).join(', '),
-      albumArt: track.album.images[0]?.url || '',
-      durationMs: track.duration_ms,
-      previewUrl: track.preview_url || null,
-    });
+    return {
+      success: true,
+      data: {
+        trackId: track.id,
+        trackUri: track.uri,
+        trackName: track.name,
+        artistName: track.artists.map((a) => a.name).join(', '),
+        albumArt: track.album.images[0]?.url || '',
+        durationMs: track.duration_ms,
+        previewUrl: track.preview_url || null,
+      },
+    };
   } catch (err) {
     if (err.response?.status === 401) {
-      return res.status(401).json({ error: 'Spotify token expired — host must re-authenticate' });
+      return { success: false, status: 401, error: 'Spotify token expired — host must re-authenticate' };
     }
     if (err.response?.status === 404) {
-      return res.status(404).json({ error: 'Track not found on Spotify' });
+      return { success: false, status: 404, error: 'Track not found on Spotify' };
     }
-    return res.status(500).json({ error: 'Failed to fetch track info' });
+    return { success: false, status: 500, error: 'Failed to fetch track info' };
   }
+}
+
+// Proxy: fetch Spotify track info using the room host's stored token
+app.get('/api/track/:roomCode/:trackId', async (req, res) => {
+  const { roomCode, trackId } = req.params;
+  const result = await getTrackInfoForRoom(roomCode, trackId);
+  if (!result.success) return res.status(result.status).json({ error: result.error });
+  return res.json(result.data);
 });
 
 // Proxy: start a preview clip on the host's Spotify playback device
@@ -293,6 +303,20 @@ io.on('connection', (socket) => {
     if (roomCode && accessToken && typeof accessToken === 'string') {
       gameManager.setHostToken(roomCode.toUpperCase(), accessToken);
     }
+  });
+
+  // Fetch track info through socket so room lookup stays on the same process instance.
+  socket.on('fetch-track', async ({ roomCode, trackId }, callback) => {
+    if (!roomCode || !trackId) {
+      return callback?.({ success: false, error: 'Missing roomCode or trackId' });
+    }
+
+    const result = await getTrackInfoForRoom(roomCode.trim().toUpperCase(), trackId.trim());
+    if (!result.success) {
+      return callback?.({ success: false, error: result.error, status: result.status });
+    }
+
+    return callback?.({ success: true, track: result.data });
   });
 
   // Player submits their chosen song + segment start time
