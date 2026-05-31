@@ -118,10 +118,12 @@ function stopHintTimer(roomCode) {
   }
 }
 
-function startHintTimer(roomCode) {
+function startHintTimer(roomCode, roundDurationMs = 30000) {
   stopHintTimer(roomCode);
 
-  // Reveal one character every 6 seconds, capped by server-side max reveals.
+  const hintIntervalMs = Math.max(3000, Math.floor(roundDurationMs / 5));
+
+  // Reveal one character on a cadence tied to round length.
   const timer = setInterval(() => {
     const hint = gameManager.revealNextHint(roomCode);
     if (!hint.success) {
@@ -138,7 +140,7 @@ function startHintTimer(roomCode) {
     if (hint.done) {
       stopHintTimer(roomCode);
     }
-  }, 6000);
+  }, hintIntervalMs);
 
   hintTimers.set(roomCode, timer);
 }
@@ -333,6 +335,18 @@ io.on('connection', (socket) => {
     }
   });
 
+  // Host updates pre-game room settings.
+  socket.on('update-settings', ({ roomCode, settings }, callback) => {
+    const normalizedRoomCode = roomCode?.toUpperCase();
+    const result = gameManager.updateSettings(normalizedRoomCode, socket.id, settings);
+    if (!result.success) {
+      return callback?.({ success: false, error: result.error });
+    }
+
+    io.to(result.room.code).emit('room-update', result.room.getPublicState());
+    return callback?.({ success: true, settings: result.room.settings });
+  });
+
   // Host starts the game
   socket.on('start-game', ({ roomCode }, callback) => {
     const result = gameManager.startGame(roomCode?.toUpperCase(), socket.id);
@@ -348,28 +362,50 @@ io.on('connection', (socket) => {
       const roundResult = gameManager.startRound(result.room.code);
       if (roundResult.success) {
         io.to(result.room.code).emit('round-start', roundResult.roundData);
-        startHintTimer(result.room.code);
+        startHintTimer(result.room.code, roundResult.roundData.settings?.clipDurationMs);
       }
     }, 3000);
   });
 
   // Player submits a guess
-  socket.on('submit-guess', ({ roomCode, guess }, callback) => {
-    if (!guess || typeof guess !== 'string') {
+  socket.on('submit-guess', ({ roomCode, guess, titleGuess, artistGuess }, callback) => {
+    const normalizedTitleGuess =
+      typeof titleGuess === 'string'
+        ? titleGuess.trim().slice(0, 100)
+        : typeof guess === 'string'
+          ? guess.trim().slice(0, 100)
+          : '';
+
+    const normalizedArtistGuess = typeof artistGuess === 'string' ? artistGuess.trim().slice(0, 100) : '';
+
+    if (!normalizedTitleGuess) {
       return callback?.({ success: false });
     }
-    const result = gameManager.submitGuess(roomCode?.toUpperCase(), socket.id, guess.trim().slice(0, 100));
+    const result = gameManager.submitGuess(
+      roomCode?.toUpperCase(),
+      socket.id,
+      normalizedTitleGuess,
+      normalizedArtistGuess,
+    );
     if (!result) {
       return callback?.({ success: false, alreadyGuessed: true });
     }
 
-    callback?.({ success: true, correct: result.correct, points: result.points });
+    callback?.({
+      success: true,
+      correct: result.correct,
+      artistCorrect: result.artistCorrect,
+      points: result.points,
+      basePoints: result.basePoints,
+      artistBonusPoints: result.artistBonusPoints,
+    });
 
     if (result.correct) {
       io.to(roomCode.toUpperCase()).emit('player-guessed', {
         playerId: socket.id,
         playerName: result.playerName,
         points: result.points,
+        artistBonusPoints: result.artistBonusPoints,
         timeMs: result.timeMs,
       });
     }
@@ -411,7 +447,7 @@ io.on('connection', (socket) => {
       io.to(roomCode.toUpperCase()).emit('game-over', { scores: result.scores });
     } else {
       io.to(roomCode.toUpperCase()).emit('round-start', result.roundData);
-      startHintTimer(roomCode.toUpperCase());
+      startHintTimer(roomCode.toUpperCase(), result.roundData.settings?.clipDurationMs);
     }
   });
 

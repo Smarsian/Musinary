@@ -2,6 +2,7 @@ import { useRef, useCallback } from 'react';
 
 interface Props {
   durationMs: number;
+  intervalMs: number;
   startTimeMs: number;
   onChange: (startTimeMs: number) => void;
 }
@@ -13,15 +14,17 @@ function msToTime(ms: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
-export default function SegmentSlider({ durationMs, startTimeMs, onChange }: Props) {
+export default function SegmentSlider({ durationMs, intervalMs, startTimeMs, onChange }: Props) {
   const barRef = useRef<HTMLDivElement>(null);
 
-  const WINDOW_MS = 30_000;
-  const maxStart = Math.max(0, durationMs - WINDOW_MS);
+  const windowMs = Math.max(1000, intervalMs);
+  const maxStart = Math.max(0, durationMs - windowMs);
 
   // Percentage positions for the highlight window
-  const windowLeft = (startTimeMs / durationMs) * 100;
-  const windowWidth = (WINDOW_MS / durationMs) * 100;
+  const safeDuration = Math.max(1, durationMs);
+  const clampedWindowMs = Math.min(windowMs, safeDuration);
+  const windowLeft = (startTimeMs / safeDuration) * 100;
+  const windowWidth = (clampedWindowMs / safeDuration) * 100;
 
   const positionFromEvent = useCallback(
     (clientX: number): number => {
@@ -74,7 +77,7 @@ export default function SegmentSlider({ durationMs, startTimeMs, onChange }: Pro
       <div className="flex justify-between text-xs text-gray-500">
         <span>0:00</span>
         <span className="text-brand-400 font-semibold">
-          Drag to choose a 30-second clip
+          Drag to choose a {Math.round(windowMs / 1000)}-second clip
         </span>
         <span>{msToTime(durationMs)}</span>
       </div>
@@ -117,7 +120,7 @@ export default function SegmentSlider({ durationMs, startTimeMs, onChange }: Pro
       <div className="flex justify-between text-sm font-mono">
         <span className="text-brand-400 font-semibold">Start {msToTime(startTimeMs)}</span>
         <span className="text-gray-400">to</span>
-        <span className="text-brand-400 font-semibold">End {msToTime(startTimeMs + WINDOW_MS)}</span>
+        <span className="text-brand-400 font-semibold">End {msToTime(Math.min(durationMs, startTimeMs + windowMs))}</span>
       </div>
     </div>
   );

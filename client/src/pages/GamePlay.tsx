@@ -14,10 +14,9 @@ interface Props {
 interface LiveGuess {
   playerName: string;
   points: number;
+  artistBonusPoints?: number;
   timeMs: number;
 }
-
-const ROUND_DURATION_MS = 30_000;
 
 export default function GamePlay({ roomCode, isHost, currentPlayer, spotifyToken, onGameOver }: Props) {
   const [hostVolume, setHostVolume] = useState<number>(() => {
@@ -30,9 +29,10 @@ export default function GamePlay({ roomCode, isHost, currentPlayer, spotifyToken
   const [round, setRound] = useState<RoundData | null>(null);
   const [roundResult, setRoundResult] = useState<RoundEndedPayload | null>(null);
   const [guess, setGuess] = useState('');
+  const [artistGuess, setArtistGuess] = useState('');
   const [guessStatus, setGuessStatus] = useState<'idle' | 'correct' | 'wrong' | 'sent'>('idle');
   const [liveGuesses, setLiveGuesses] = useState<LiveGuess[]>([]);
-  const [timeLeft, setTimeLeft] = useState(ROUND_DURATION_MS);
+  const [timeLeft, setTimeLeft] = useState(30_000);
   const [deviceId, setDeviceId] = useState<string | null>(null);
   const [sdkReady, setSdkReady] = useState(false);
   const [sdkError, setSdkError] = useState<string | null>(null);
@@ -45,6 +45,7 @@ export default function GamePlay({ roomCode, isHost, currentPlayer, spotifyToken
   const playerRef = useRef<SpotifyPlayer | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const roundEndedRef = useRef(false);
+  const roundDurationMs = round?.settings?.clipDurationMs ?? 30_000;
 
   // ─── Spotify Web Playback SDK (host only) ──────────────────────────────────
   useEffect(() => {
@@ -115,12 +116,13 @@ export default function GamePlay({ roomCode, isHost, currentPlayer, spotifyToken
       setRound(data);
       setRoundResult(null);
       setGuess('');
+      setArtistGuess('');
       setGuessStatus('idle');
       setLiveGuesses([]);
       roundEndedRef.current = false;
       setPhase('countdown');
       setCountdown(3);
-      setTimeLeft(ROUND_DURATION_MS);
+      setTimeLeft(data.settings?.clipDurationMs ?? 30_000);
       setHintMask(data.hintMask ?? '');
       setHintMaxReveals(data.hintMaxReveals ?? 0);
     };
@@ -164,7 +166,7 @@ export default function GamePlay({ roomCode, isHost, currentPlayer, spotifyToken
     if (phase !== 'countdown' || !round) return;
     if (countdown <= 0) {
       setPhase('playing');
-      startRoundTimer();
+      startRoundTimer(round?.settings?.clipDurationMs ?? 30_000);
       if (isHost && spotifyToken) {
         const playPromise = deviceId && audioArmed
           ? transferPlayback(spotifyToken, deviceId, false).then(() =>
@@ -197,12 +199,12 @@ export default function GamePlay({ roomCode, isHost, currentPlayer, spotifyToken
     }
   }
 
-  function startRoundTimer() {
+  function startRoundTimer(durationMs: number) {
     if (timerRef.current) clearInterval(timerRef.current);
     const start = Date.now();
     timerRef.current = setInterval(() => {
       const elapsed = Date.now() - start;
-      const left = Math.max(0, ROUND_DURATION_MS - elapsed);
+      const left = Math.max(0, durationMs - elapsed);
       setTimeLeft(left);
       if (left === 0) {
         clearTimer();
@@ -237,7 +239,14 @@ export default function GamePlay({ roomCode, isHost, currentPlayer, spotifyToken
   const submitGuess = useCallback(() => {
     if (!guess.trim() || guessStatus !== 'idle' || isHost || isOwnSongRound) return;
     setGuessStatus('sent');
-    socket.emit('submit-guess', { roomCode, guess: guess.trim() }, (res: { success: boolean; correct?: boolean; points?: number }) => {
+    socket.emit(
+      'submit-guess',
+      {
+        roomCode,
+        titleGuess: guess.trim(),
+        artistGuess: artistGuess.trim(),
+      },
+      (res: { success: boolean; correct?: boolean; points?: number }) => {
       if (!res?.success) {
         setGuessStatus('idle');
         return;
@@ -248,12 +257,17 @@ export default function GamePlay({ roomCode, isHost, currentPlayer, spotifyToken
         setGuessStatus('wrong');
         setTimeout(() => setGuessStatus('idle'), 1500);
       }
-    });
-  }, [guess, guessStatus, roomCode, isHost, isOwnSongRound]);
+      },
+    );
+  }, [guess, artistGuess, guessStatus, roomCode, isHost, isOwnSongRound]);
 
-  const progressPct = (timeLeft / ROUND_DURATION_MS) * 100;
+  const progressPct = (timeLeft / roundDurationMs) * 100;
   const timerColor =
-    timeLeft > 15000 ? 'bg-green-500' : timeLeft > 7000 ? 'bg-yellow-400' : 'bg-red-500';
+    timeLeft > roundDurationMs * 0.5
+      ? 'bg-green-500'
+      : timeLeft > roundDurationMs * 0.25
+        ? 'bg-yellow-400'
+        : 'bg-red-500';
 
   // ─── Countdown screen ───────────────────────────────────────────────────────
   if (phase === 'countdown' || !round) {
@@ -320,9 +334,19 @@ export default function GamePlay({ roomCode, isHost, currentPlayer, spotifyToken
                     <span className={`ml-2 text-sm ${g.correct ? 'text-green-400' : 'text-gray-500'}`}>
                       {g.correct ? `"${g.guess}"` : `"${g.guess}"`}
                     </span>
+                    {round.settings.artistBonusEnabled && g.artistGuess && (
+                      <span className={`ml-2 text-xs ${g.artistCorrect ? 'text-brand-300' : 'text-gray-500'}`}>
+                        artist: "{g.artistGuess}"
+                      </span>
+                    )}
                   </div>
                   {g.correct && (
-                    <span className="text-brand-400 font-bold">+{g.points} pts</span>
+                    <span className="text-brand-400 font-bold">
+                      +{g.points} pts
+                      {round.settings.artistBonusEnabled && (g.artistBonusPoints ?? 0) > 0 && (
+                        <span className="text-xs text-brand-300 ml-1">(+{g.artistBonusPoints} artist)</span>
+                      )}
+                    </span>
                   )}
                 </div>
               ))}
@@ -404,7 +428,12 @@ export default function GamePlay({ roomCode, isHost, currentPlayer, spotifyToken
             {liveGuesses.map((g, i) => (
               <div key={i} className="flex justify-between text-sm animate-bounce-in">
                 <span className="text-green-400 font-semibold">{g.playerName}</span>
-                <span className="text-brand-400 font-bold">+{g.points} pts ({(g.timeMs / 1000).toFixed(1)}s)</span>
+                <span className="text-brand-400 font-bold">
+                  +{g.points} pts ({(g.timeMs / 1000).toFixed(1)}s)
+                  {(g.artistBonusPoints ?? 0) > 0 && (
+                    <span className="text-xs text-brand-300 ml-1">(+{g.artistBonusPoints} artist)</span>
+                  )}
+                </span>
               </div>
             ))}
           </div>
@@ -442,6 +471,16 @@ export default function GamePlay({ roomCode, isHost, currentPlayer, spotifyToken
                 disabled={guessStatus === 'sent' || isOwnSongRound || isHost}
                 autoFocus
               />
+              {round.settings.artistBonusEnabled && (
+                <input
+                  className="input text-center text-lg py-3"
+                  placeholder="Artist name (bonus)"
+                  value={artistGuess}
+                  onChange={(e) => setArtistGuess(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && submitGuess()}
+                  disabled={guessStatus === 'sent' || isOwnSongRound || isHost}
+                />
+              )}
               <button
                 onClick={submitGuess}
                 disabled={!guess.trim() || guessStatus === 'sent' || isOwnSongRound || isHost}
@@ -449,6 +488,11 @@ export default function GamePlay({ roomCode, isHost, currentPlayer, spotifyToken
               >
                 {guessStatus === 'wrong' ? 'Try again' : 'Submit Guess'}
               </button>
+              {round.settings.artistBonusEnabled && (
+                <p className="text-xs text-gray-500 text-center">
+                  Correct title + correct artist awards +{round.settings.artistBonusPoints} bonus points.
+                </p>
+              )}
               {guessStatus === 'wrong' && (
                 <p className="text-red-400 text-sm text-center animate-bounce-in">
                   Not quite — try again!

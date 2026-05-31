@@ -1,4 +1,4 @@
-import { Player, RoomState } from '../types';
+import { Player, RoomState, GameSettings } from '../types';
 
 interface Props {
   room: RoomState;
@@ -6,14 +6,16 @@ interface Props {
   isHost: boolean;
   onAddSong: () => void;
   onStartGame: () => void;
+  onUpdateSettings: (settings: Partial<GameSettings>) => void;
   error: string | null;
 }
 
-export default function Lobby({ room, currentPlayer, isHost, onAddSong, onStartGame, error }: Props) {
+export default function Lobby({ room, currentPlayer, isHost, onAddSong, onStartGame, onUpdateSettings, error }: Props) {
   const participants = room.players.filter((p) => p.connected && p.participates);
   const allSubmitted = participants.length > 0 && participants.every((p) => p.songSubmitted);
   const submittedCount = participants.filter((p) => p.songSubmitted).length;
   const totalCount = participants.length;
+  const clipSeconds = Math.round(room.settings.clipDurationMs / 1000);
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-4 py-12">
@@ -81,6 +83,61 @@ export default function Lobby({ room, currentPlayer, isHost, onAddSong, onStartG
               </span>
             </div>
           ))}
+        </div>
+
+        {/* Game settings */}
+        <div className="card space-y-4">
+          <h2 className="text-sm text-gray-500 uppercase tracking-widest font-semibold">Game Settings</h2>
+
+          {isHost ? (
+            <>
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label htmlFor="clip-duration" className="text-sm text-gray-300 font-medium">
+                    Song clip length
+                  </label>
+                  <span className="text-sm font-mono text-brand-400">{clipSeconds}s</span>
+                </div>
+                <input
+                  id="clip-duration"
+                  type="range"
+                  min={10}
+                  max={60}
+                  step={5}
+                  value={clipSeconds}
+                  onChange={(e) => onUpdateSettings({ clipDurationMs: Number(e.target.value) * 1000 })}
+                  className="w-full"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Players can choose any segment window of this length.
+                </p>
+              </div>
+
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="mt-1"
+                  checked={room.settings.artistBonusEnabled}
+                  onChange={(e) => onUpdateSettings({ artistBonusEnabled: e.target.checked })}
+                />
+                <span className="text-sm text-gray-300">
+                  Enable artist guess bonus
+                  <span className="block text-xs text-gray-500 mt-1">
+                    Correct title + correct artist awards an extra {room.settings.artistBonusPoints} points.
+                  </span>
+                </span>
+              </label>
+            </>
+          ) : (
+            <div className="text-sm text-gray-300 space-y-1">
+              <p>Clip length: <span className="text-brand-300 font-semibold">{clipSeconds}s</span></p>
+              <p>
+                Artist bonus: <span className="text-brand-300 font-semibold">
+                  {room.settings.artistBonusEnabled ? `On (+${room.settings.artistBonusPoints})` : 'Off'}
+                </span>
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Actions */}

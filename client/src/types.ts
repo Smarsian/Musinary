@@ -20,6 +20,12 @@ export interface Song {
 
 export type GamePhase = 'lobby' | 'song-selection' | 'playing' | 'game-over';
 
+export interface GameSettings {
+  clipDurationMs: number;
+  artistBonusEnabled: boolean;
+  artistBonusPoints: number;
+}
+
 export interface RoomState {
   code: string;
   phase: GamePhase;
@@ -31,6 +37,7 @@ export interface RoomState {
   currentRoundIndex: number;
   roundStartTime: number | null;
   totalRounds: number;
+  settings: GameSettings;
 }
 
 export interface RoundData {
@@ -45,13 +52,18 @@ export interface RoundData {
   roundStartTime: number;
   hintMask: string;
   hintMaxReveals: number;
+  settings: GameSettings;
 }
 
 export interface GuessResult {
   playerId: string;
   playerName: string;
   guess: string;
+  artistGuess?: string;
   correct: boolean;
+  artistCorrect?: boolean;
+  basePoints?: number;
+  artistBonusPoints?: number;
   points: number;
   timeMs: number;
 }

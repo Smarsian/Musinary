@@ -60,6 +60,7 @@ async function stopHostPreview(roomCode: string): Promise<void> {
 interface Props {
   roomCode: string;
   spotifyToken: string | null;
+  clipDurationMs: number;
   onSubmit: (song: TrackInfo & { startTimeMs: number }) => void;
   onCancel: () => void;
 }
@@ -74,7 +75,7 @@ function extractTrackId(input: string): string | null {
   return null;
 }
 
-export default function SongSelector({ roomCode, spotifyToken, onSubmit, onCancel }: Props) {
+export default function SongSelector({ roomCode, spotifyToken, clipDurationMs, onSubmit, onCancel }: Props) {
   const [url, setUrl] = useState('');
   const [trackInfo, setTrackInfo] = useState<TrackInfo | null>(null);
   const [startTimeMs, setStartTimeMs] = useState(0);
@@ -111,8 +112,9 @@ export default function SongSelector({ roomCode, spotifyToken, onSubmit, onCance
 
       setTrackInfo(data);
       // Default start: midpoint of the track (more interesting than the start)
-      const mid = Math.max(0, Math.floor(data.durationMs / 2 / 1000) * 1000 - 15000);
-      setStartTimeMs(Math.min(mid, data.durationMs - 30000));
+      const midpointOffset = Math.floor(clipDurationMs / 2);
+      const mid = Math.max(0, Math.floor(data.durationMs / 2 / 1000) * 1000 - midpointOffset);
+      setStartTimeMs(Math.min(mid, Math.max(0, data.durationMs - clipDurationMs)));
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Unknown error');
     } finally {
@@ -162,10 +164,10 @@ export default function SongSelector({ roomCode, spotifyToken, onSubmit, onCance
         await startHostPreview(roomCode, trackInfo.trackUri, startTimeMs);
       }
 
-      // Auto-stop after 30 seconds so preview matches game clip length.
+      // Auto-stop to match configured in-game clip length.
       previewStopTimerRef.current = setTimeout(() => {
         stopPreview();
-      }, 30_000);
+      }, clipDurationMs);
     } catch (e) {
       if (!spotifyToken && trackInfo.previewUrl) {
         try {
@@ -174,7 +176,7 @@ export default function SongSelector({ roomCode, spotifyToken, onSubmit, onCance
           await audio.play();
           previewStopTimerRef.current = setTimeout(() => {
             stopPreview();
-          }, 30_000);
+          }, clipDurationMs);
           return;
         } catch {
           // continue and show original error message
@@ -204,6 +206,12 @@ export default function SongSelector({ roomCode, spotifyToken, onSubmit, onCance
       stopPreview();
     }
   }, [startTimeMs]);
+
+  useEffect(() => {
+    if (!trackInfo) return;
+    const maxStart = Math.max(0, trackInfo.durationMs - clipDurationMs);
+    setStartTimeMs((prev) => Math.max(0, Math.min(prev, maxStart)));
+  }, [clipDurationMs, trackInfo]);
 
   function handleSubmit() {
     if (!trackInfo) return;
@@ -269,10 +277,11 @@ export default function SongSelector({ roomCode, spotifyToken, onSubmit, onCance
             {/* Segment slider */}
             <div>
               <h3 className="text-sm text-gray-400 mb-3 font-semibold uppercase tracking-wider">
-                Select your 30-second segment
+                Select your {Math.round(clipDurationMs / 1000)}-second segment
               </h3>
               <SegmentSlider
                 durationMs={trackInfo.durationMs}
+                intervalMs={clipDurationMs}
                 startTimeMs={startTimeMs}
                 onChange={setStartTimeMs}
               />
@@ -283,7 +292,7 @@ export default function SongSelector({ roomCode, spotifyToken, onSubmit, onCance
               disabled={!trackInfo}
               className="btn-secondary w-full py-3"
             >
-              {previewing ? 'Stop Preview' : 'Preview 30-Second Clip'}
+              {previewing ? 'Stop Preview' : `Preview ${Math.round(clipDurationMs / 1000)}-Second Clip`}
             </button>
 
             {/* Preview note */}

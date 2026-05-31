@@ -6,12 +6,35 @@ function generateRoomCode() {
   return crypto.randomBytes(3).toString('hex').toUpperCase();
 }
 
-function calculatePoints(timeMs) {
-  if (timeMs <= 5000) return 1000;
-  if (timeMs <= 10000) return 800;
-  if (timeMs <= 15000) return 600;
-  if (timeMs <= 20000) return 500;
-  if (timeMs <= 25000) return 300;
+const DEFAULT_CLIP_DURATION_MS = 30000;
+const MIN_CLIP_DURATION_MS = 10000;
+const MAX_CLIP_DURATION_MS = 60000;
+const CLIP_DURATION_STEP_MS = 5000;
+const DEFAULT_ARTIST_BONUS_POINTS = 250;
+
+function clampClipDuration(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return DEFAULT_CLIP_DURATION_MS;
+  const stepped = Math.round(numeric / CLIP_DURATION_STEP_MS) * CLIP_DURATION_STEP_MS;
+  return Math.max(MIN_CLIP_DURATION_MS, Math.min(MAX_CLIP_DURATION_MS, stepped));
+}
+
+function normalizeSettings(input) {
+  return {
+    clipDurationMs: clampClipDuration(input?.clipDurationMs),
+    artistBonusEnabled: Boolean(input?.artistBonusEnabled),
+    artistBonusPoints: DEFAULT_ARTIST_BONUS_POINTS,
+  };
+}
+
+function calculatePoints(timeMs, roundDurationMs = DEFAULT_CLIP_DURATION_MS) {
+  const safeDuration = Math.max(1, roundDurationMs);
+  const ratio = timeMs / safeDuration;
+  if (ratio <= 1 / 6) return 1000;
+  if (ratio <= 2 / 6) return 800;
+  if (ratio <= 3 / 6) return 600;
+  if (ratio <= 4 / 6) return 500;
+  if (ratio <= 5 / 6) return 300;
   return 100;
 }
 
@@ -36,12 +59,37 @@ function normalizeTitle(title) {
     .trim();
 }
 
+function normalizeArtistName(value) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/\(.*?\)/g, '')
+    .replace(/\[.*?\]/g, '')
+    .replace(/feat\.?/g, '')
+    .replace(/ft\.?/g, '')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function checkGuess(guess, trackName) {
   const g = normalizeTitle(guess);
   const t = normalizeTitle(trackName);
   if (!g || !t) return false;
   // Strict mode: only exact normalized title matches are correct.
   return g === t;
+}
+
+function checkArtistGuess(guess, artistName) {
+  const normalizedGuess = normalizeArtistName(guess);
+  if (!normalizedGuess) return false;
+
+  const artists = String(artistName || '')
+    .split(',')
+    .map((name) => normalizeArtistName(name))
+    .filter(Boolean);
+
+  if (artists.length === 0) return false;
+  return artists.includes(normalizedGuess);
 }
 
 // ─── Room ─────────────────────────────────────────────────────────────────────
@@ -69,6 +117,7 @@ class Room {
     /** @type {Set<number>} */
     this.hintRevealedIndexes = new Set();
     this.hintMaxReveals = 0;
+    this.settings = normalizeSettings();
   }
 
   getPlayer(id) {
@@ -114,6 +163,7 @@ class Room {
       currentRoundIndex: this.currentRoundIndex,
       roundStartTime: this.roundStartTime,
       totalRounds: this.songs.length,
+      settings: this.settings,
     };
   }
 }
@@ -189,6 +239,9 @@ class GameManager {
     if (!player.participates) return { success: false, error: 'Host does not submit songs' };
     if (!songData?.trackId) return { success: false, error: 'Invalid song data' };
 
+    const clipDurationMs = room.settings.clipDurationMs;
+    const maxStartTime = Math.max(0, songData.durationMs - clipDurationMs);
+
     // Replace any previous submission from this player
     room.songs = room.songs.filter((s) => s.submittedBy !== playerId);
     room.songs.push({
@@ -198,12 +251,39 @@ class GameManager {
       artistName: songData.artistName,
       albumArt: songData.albumArt,
       durationMs: songData.durationMs,
-      startTimeMs: Math.max(0, Math.min(songData.startTimeMs, songData.durationMs - 30000)),
+      startTimeMs: Math.max(0, Math.min(songData.startTimeMs, maxStartTime)),
       submittedBy: playerId,
     });
     player.songSubmitted = true;
 
     return { success: true, room, allSubmitted: room.allSongsSubmitted() };
+  }
+
+  updateSettings(roomCode, requesterId, partialSettings) {
+    const room = this.rooms.get(roomCode);
+    if (!room) return { success: false, error: 'Room not found' };
+    if (room.hostId !== requesterId) {
+      return { success: false, error: 'Only the host can change settings' };
+    }
+    if (room.phase === 'playing' || room.phase === 'game-over') {
+      return { success: false, error: 'Settings can only be changed before the game starts' };
+    }
+
+    room.settings = normalizeSettings({
+      ...room.settings,
+      ...(partialSettings || {}),
+    });
+
+    // Re-clamp existing song start positions if clip length changed.
+    room.songs = room.songs.map((song) => {
+      const maxStart = Math.max(0, song.durationMs - room.settings.clipDurationMs);
+      return {
+        ...song,
+        startTimeMs: Math.max(0, Math.min(song.startTimeMs, maxStart)),
+      };
+    });
+
+    return { success: true, room };
   }
 
   startGame(roomCode, requesterId) {
@@ -259,6 +339,7 @@ class GameManager {
         roundStartTime: room.roundStartTime,
         hintMask: this.getCurrentHintMask(room),
         hintMaxReveals: room.hintMaxReveals,
+        settings: room.settings,
       },
     };
   }
@@ -338,7 +419,7 @@ class GameManager {
     };
   }
 
-  submitGuess(roomCode, playerId, guess) {
+  submitGuess(roomCode, playerId, guess, artistGuess = '') {
     const room = this.rooms.get(roomCode);
     if (!room || room.phase !== 'playing') return null;
 
@@ -353,19 +434,42 @@ class GameManager {
     if (song.submittedBy === playerId) return null;
 
     const timeMs = Date.now() - room.roundStartTime;
-    if (timeMs > 30000) return null; // round over
+    if (timeMs > room.settings.clipDurationMs) return null; // round over
 
     const correct = checkGuess(guess, song.trackName);
-    const points = correct ? calculatePoints(timeMs) : 0;
+    const basePoints = correct ? calculatePoints(timeMs, room.settings.clipDurationMs) : 0;
+    const artistCorrect =
+      correct && room.settings.artistBonusEnabled
+        ? checkArtistGuess(artistGuess, song.artistName)
+        : false;
+    const artistBonusPoints = artistCorrect ? room.settings.artistBonusPoints : 0;
+    const points = basePoints + artistBonusPoints;
 
     const player = room.getPlayer(playerId);
     if (!player) return null;
     if (!player.participates) return null;
 
     if (correct) player.score += points;
-    room.roundGuesses.set(playerId, { guess, correct, points, timeMs });
+    room.roundGuesses.set(playerId, {
+      guess,
+      artistGuess,
+      correct,
+      artistCorrect,
+      basePoints,
+      artistBonusPoints,
+      points,
+      timeMs,
+    });
 
-    return { correct, points, timeMs, playerName: player.name };
+    return {
+      correct,
+      artistCorrect,
+      basePoints,
+      artistBonusPoints,
+      points,
+      timeMs,
+      playerName: player.name,
+    };
   }
 
   endRound(roomCode, requesterId) {

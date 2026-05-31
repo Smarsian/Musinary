@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import socket from './socket';
-import { AppView, Player, RoomState, TrackInfo } from './types';
+import { AppView, GameSettings, Player, RoomState, TrackInfo } from './types';
 import { exchangeCodeForToken, redirectToSpotifyAuth } from './spotifyAuth';
 import Home from './pages/Home';
 import Lobby from './pages/Lobby';
@@ -240,6 +240,39 @@ export default function App() {
     });
   }, [room]);
 
+  const handleUpdateSettings = useCallback(
+    (partialSettings: Partial<GameSettings>) => {
+      if (!room) return;
+
+      // Keep host UI responsive while server confirms.
+      setRoom((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          settings: {
+            ...prev.settings,
+            ...partialSettings,
+          },
+        };
+      });
+
+      socket.timeout(8000).emit(
+        'update-settings',
+        { roomCode: room.code, settings: partialSettings },
+        (err: Error | null, res: { success: boolean; error?: string }) => {
+          if (err) {
+            setError('Settings update timed out.');
+            return;
+          }
+          if (!res.success) {
+            setError(res.error ?? 'Failed to update settings');
+          }
+        },
+      );
+    },
+    [room],
+  );
+
   const handleSubmitSong = useCallback(
     (songData: TrackInfo & { startTimeMs: number }) => {
       if (!room) return;
@@ -305,6 +338,7 @@ export default function App() {
             isHost={isHost}
             onAddSong={() => setView('song-selector')}
             onStartGame={handleStartGame}
+            onUpdateSettings={handleUpdateSettings}
             error={error}
           />
         </>
@@ -314,6 +348,7 @@ export default function App() {
         <SongSelector
           roomCode={room.code}
           spotifyToken={spotifyToken}
+          clipDurationMs={room.settings.clipDurationMs}
           onSubmit={handleSubmitSong}
           onCancel={() => setView('lobby')}
         />
